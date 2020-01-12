@@ -1075,27 +1075,7 @@ void exportGridToFile(grid3D& grid){
     outFile.close();
 }
 
-/*!
- * function that find maximum confidence value between the black voxels and normalize the voxels's confidende value by
- * division by the maximum value. (turn all confidence values to [0,1] scale)
- * @param grid - the data structure when the black voxels exist
- */
-void normalizeVoxelsConfidence(grid3D& grid){
-    int counter = 0;
-    float max_confidence=-9999;
-    for (auto it = grid.getGrid().begin(); it != grid.getGrid().end(); ++it) {
-        if(it->second.getConfidence() > max_confidence) {
-            max_confidence = it->second.getConfidence();
-        }
-    }
-    for (auto it = grid.getGrid().begin(); it != grid.getGrid().end(); ++it) {
-        float normalize_confidence = it->second.getConfidence() / max_confidence;
-        it->second.setConfidence(normalize_confidence);
-    }
 
-    cout << "finished_normalizing_confidence" << endl;
-
-}
 
     void createConfigurationFile(string path, grid3D& grid, int frame_num, int number_of_features_from_frame, bool all,
             int number_of_meshes_created){
@@ -1122,6 +1102,103 @@ void normalizeVoxelsConfidence(grid3D& grid){
 
 
     }
+    /*!
+     * function that creates a ply file from all of the features we get from Arkit
+     * @param frames_features - the features
+     * @param path_to_ply - path to the generated ply file.
+     */
+    void createPlyFileOfAllFeatures(vector<vector<worldPoint>>& frames_features, string path_to_ply){
+        int features_num = 0;
+        for(int i = 0; i < frames_features.size(); i++){
+            for(int j = 0; j < frames_features[i].size(); j++){
+                features_num++;
+            }
+        }
+        std::ofstream outFile(path_to_ply);
+        outFile << "ply" << endl;
+        outFile << "format ascii 1.0" << endl;
+        outFile << "element vertex " + to_string(features_num) << endl;
+        outFile << "property float x" << endl;
+        outFile << "property float y" << endl;
+        outFile << "property float z" << endl;
+        outFile << "property float nx" << endl;
+        outFile << "property float ny" << endl;
+        outFile << "property float nz" << endl;
+        outFile << "property uchar red" << endl;
+        outFile << "property uchar green" << endl;
+        outFile << "property uchar blue" << endl;
+        outFile << "end_header" << endl;
+        for(int i = 0; i < frames_features.size(); i++){
+            for(int j = 0; j < frames_features[i].size(); j++){
+                features_num++;
+                outFile << to_string(frames_features[i][j].x) << " " << to_string(frames_features[i][j].y) << " " << to_string(frames_features[i][j].z)
+                        << " 0 0 0 "
+                        << to_string(255) << " " << to_string(255) << " " << to_string(255)
+                        << endl;
+            }
+        }
+        outFile.close();
+
+    }
+
+    /*!
+     * function for parsing the Arkit data (json files), and create frames instances out of it, vetctor with all
+     * the images names, json file names, vector with all the created frames, and vector of vectors containing all the
+     * features arkit provided us.
+     *
+     * *** IN ORDER TO USE THE FUNCTION, THE ARKIT DATA SHOULD BE IN THE PROJECT LOCATION ****
+     *
+     * @param images_files_names - a vector that will hold all the images names.
+     * @param json_files_names - a vector that will hold all the json files names
+     * @param frames_features - vector of vectors, where each vector holds all of the features of a specific frame.
+     * @param frames_vector - vector containing all the created frames instances.
+     */
+    void ParseArKitData(vector<string>& images_files_names, vector<string>& json_files_names,
+            vector<vector<worldPoint>>& frames_features, vector<Frame>& frames_vector)
+{
+        string command1 = "dir *.jpg > images.txt";
+        string command2 = "dir *.json > jsons.txt";
+        int n1 = command1.length();
+        int n2 = command2.length();
+        char command_char_array1[n1 + 1];
+        char command_char_array2[n2 + 1];
+        // copying the contents of the
+        // string to char array
+        strcpy(command_char_array1, command1.c_str());
+        system(command_char_array1);
+        strcpy(command_char_array2, command2.c_str());
+        system(command_char_array2);
+        ifstream images("images.txt");
+        ifstream jsons("jsons.txt");
+        string line_image;
+        // parse images
+        while(getline(images, line_image)){
+            istringstream parse_line(line_image);
+            string image_file;
+            while(parse_line >> image_file){
+                images_files_names.push_back(image_file);
+            }
+        }
+        // parse jsons
+        string line_jsons;
+        while(getline(jsons, line_jsons)){
+            istringstream parse_line(line_jsons);
+            string json_file;
+            while(parse_line >> json_file){
+                json_files_names.push_back(json_file);
+            }
+        }
+        // parse the jsons, create frames and feature vectors.
+        for(int i = 0; i < json_files_names.size(); i++){
+            vector<float> image_C1;
+            vector<float> image_C2;
+            vector<worldPoint> image_first_features;
+            parseJson(json_files_names[i], &image_C1, &image_C2, &image_first_features);
+            Frame frame(image_C1,image_C2);
+            frames_vector.push_back(frame);
+            frames_features.push_back(image_first_features);
+        }
+    }
 
 
 int main(int argc, char **argv){
@@ -1130,47 +1207,40 @@ int main(int argc, char **argv){
 //    grid3D grid_for_ball;
 //    createBall(grid_for_ball);
 
-
-
-    vector<string> images_paths;
+    vector<string> jsons;
+    vector<string> images;
     vector<vector<worldPoint>> frames_features;
     vector<Frame> frames_vector;
-    /// parse jsons
+    /// parse arKit data
+    ParseArKitData(images, jsons, frames_features, frames_vector);
+    vector<string> images_paths;
+
     ParseAllJsons(images_paths, frames_vector, frames_features);
+    /// create ply from the features
+    createPlyFileOfAllFeatures(frames_features, "grid_ply/features.ply");
     /// create grid
     grid3D grid = createGridFromGivenFrame(frames_features[0], frames_vector[0], 0.015);
     vector<Point3d> grid_edges;
     /// create grid edges
     createGridEdges(grid_edges);
-
     /// creating cam poses for all the frames in the grid axis
     vector<Matx31f> cam_poses;
     createCamPoseVectorForFrames(cam_poses,frames_vector, grid);
-
-//   testForChackTheDistance(grid);
-
-
-
     /// presenting twenty five rays from all frames
 //    testPresentTwentyFiveRaysWithSameFeature(cam_poses, frames_features, grid);
     int number_of_frames_to_present = 50;
     CreateRaysAndVoxels(cam_poses, frames_features, grid, number_of_frames_to_present);
-
     /// convert confidence values to [0,1] scale by normalize them
-    normalizeVoxelsConfidence(grid);
-
-
+    grid.normalizeVoxelsConfidence();
     cout << "start update grid by confidence" << endl;
     grid.updateGridByConfidenceThreshold();
     cout << "end update grid by confidence" << endl;
     cout << "number of voxels is " << grid.getGrid().size() << endl;
   //  grid.printGridByConfidence();
  //   createConfidenceHeatMap(grid, grid_edges, frames_vector, images_paths);
-
   //  grid.printGridByConfidence();
     /// create grid.ply file for Mesh Lab
     exportGridToFile(grid);
-
     /// export grid to a text file
     vector<vector<float>> lines;
     grid.createLines(lines);

@@ -15,11 +15,12 @@
 #include <fstream>      // std::ofstream
 
 
-#define GRID_SIZE 201
+#define GRID_SIZE 2001
 #define EDGE_COORDINATE ( GRID_SIZE - 1 ) / 2
 #define ALPHA 0.01
 #define SIGMA 1.5
-#define THRESHOLD_CONFIDENCE 0.5
+#define THRESHOLD_CONFIDENCE 0.05
+#define FEATURE_CONFIDENCE_BONUS 100
 
 using namespace std;
 using namespace cv;
@@ -105,58 +106,6 @@ public:
         return distance;
     }
 };
-
-
-
-//struct gridCellKey
-//{
-//     vector<tuple<int,int,int>> vertexes;
-//    gridCellKey(vector<tuple<int,int,int>> keys) {
-//        for(int i = 0; i < keys.size(); i++){
-//            vertexes.push_back(keys[i]);
-//        }
-//    }
-//
-//};
-
-//bool compareTuples(const tuple<int,int,int>& one, const tuple<int,int,int> & two) {
-//    int x_1 = get<0>(one);
-//    int y_1 = get<1>(one);
-//    int z_1 = get<2>(one);
-//    int x_2 = get<0>(two);
-//    int y_2 = get<1>(two);
-//    int z_2 = get<2>(two);
-//    return (x_1 == x_2 && y_1 == y_2 && z_1 == z_2);
-//}
-//
-//
-//bool operator<(const gridCellKey& a, const gridCellKey& b)
-//{
-//    for(int i = 0; i < a.vertexes.size(); i++){
-//        if(compareTuples(a.vertexes[i], b.vertexes[i])){
-//            continue;
-//        }
-//        int x_1 = get<0>(a.vertexes[i]);
-//        int y_1 = get<1>(a.vertexes[i]);
-//        int z_1 = get<2>(a.vertexes[i]);
-//        int x_2 = get<0>(b.vertexes[i]);
-//        int y_2 = get<1>(b.vertexes[i]);
-//        int z_2 = get<2>(b.vertexes[i]);
-//        if(x_1 != x_2 ){
-//            return x_1 < x_2;
-//        }
-//        if(y_1 != y_2){
-//            return y_1 < y_2;
-//        }
-//        if(z_1 != z_2){
-//            return z_1 < z_2;
-//        }
-//    }
-//    return false;
-//}
-
-
-
 
 
 
@@ -1219,6 +1168,9 @@ public:
     float calc_confidence(float s_voxel, float s_point, voxel vox) {
         float new_confidence = exp(-(pow(s_voxel - s_point, 2) / (SIGMA * SIGMA)));
         if (vox.getConfidence() == -9999) {
+            if(new_confidence == 1){
+               new_confidence += FEATURE_CONFIDENCE_BONUS;
+            }
             return new_confidence;
         } else {
 //            cout << " *****************************************************" << 5 + vox.getConfidence() << endl;
@@ -1248,8 +1200,12 @@ public:
             }
             return distance;
         } else {
-            float new_confidence = calc_confidence(s_voxel, s_point, vox);
-            float new_distance = vox.getDistance() + tanh(ALPHA * (s_voxel - s_point));
+//            float new_confidence = calc_confidence(s_voxel, s_point, vox);
+            float new_distance = vox.getDistance() + tanh(ALPHA * (s_voxel - s_point)) * vox.getConfidence();
+   //         float new_distance = vox.getDistance() + tanh(ALPHA * (s_voxel - s_point));
+//            if(new_distance == 0){
+
+
 //                    vox.getDistance() * vox.getConfidence() + tanh(ALPHA * (s_voxel - s_point)) * new_confidence;
 //            cout << "DISTANCE " << new_distance << endl;
 
@@ -1529,6 +1485,27 @@ public:
             cout << "indexes " << get<0>(it->first) << ", " << get<1>(it->first) << ", " << get<2>(it->first)
                     << " confidence " << it->second.getConfidence() <<  endl;
         }
+    }
+
+
+    /*!
+ * function that find maximum confidence value between the black voxels and normalize the voxels's confidende value by
+ * division by the maximum value. (turn all confidence values to [0,1] scale)
+ * @param grid - the data structure when the black voxels exist
+ */
+    void normalizeVoxelsConfidence(){
+        float max_confidence=-9999;
+        for (auto it = grid.begin(); it != grid.end(); ++it) {
+            if(it->second.getConfidence() > max_confidence) {
+                max_confidence = it->second.getConfidence();
+            }
+        }
+        for (auto it = grid.begin(); it != grid.end(); ++it) {
+            float normalize_confidence = it->second.getConfidence() / max_confidence;
+            it->second.setConfidence(normalize_confidence);
+        }
+
+
     }
 
 
