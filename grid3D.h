@@ -19,7 +19,8 @@
 #define EDGE_COORDINATE ( GRID_SIZE - 1 ) / 2
 #define ALPHA 0.01
 #define SIGMA 1.5
-#define THRESHOLD_CONFIDENCE 0.05
+#define THRESHOLD_CONFIDENCE 0.1
+#define NORMALIZE_DISTANCE_FACTOR 0.000005
 #define FEATURE_CONFIDENCE_BONUS 100
 
 using namespace std;
@@ -1167,10 +1168,8 @@ public:
  */
     float calc_confidence(float s_voxel, float s_point, voxel vox) {
         float new_confidence = exp(-(pow(s_voxel - s_point, 2) / (SIGMA * SIGMA)));
+        // means the voxel hasent been blacked yet
         if (vox.getConfidence() == -9999) {
-            if(new_confidence == 1){
-               new_confidence += FEATURE_CONFIDENCE_BONUS;
-            }
             return new_confidence;
         } else {
 //            cout << " *****************************************************" << 5 + vox.getConfidence() << endl;
@@ -1191,6 +1190,8 @@ public:
      * @return - the distance between them.
      */
     float calc_distance(float s_voxel, float s_point, voxel vox) {
+        float new_confidence = exp(-(pow(s_voxel - s_point, 2) / (SIGMA * SIGMA)));
+        // means the voxel hasent been blacked yet
         if (vox.getDistance() == 9999) {
 
 //           cout << "DISTANCE " << tanh(ALPHA * (s_voxel - s_point)) << endl;
@@ -1200,19 +1201,26 @@ public:
             }
             return distance;
         } else {
-//            float new_confidence = calc_confidence(s_voxel, s_point, vox);
-            float new_distance = vox.getDistance() + tanh(ALPHA * (s_voxel - s_point)) * vox.getConfidence();
+            float d_new = tanh(ALPHA * (s_voxel - s_point));
+            float new_distance = (vox.getDistance() * vox.getConfidence() + d_new * new_confidence) / (vox.getConfidence() + new_confidence);
+//            new_distance = tanh(NORMALIZE_DISTANCE_FACTOR * (new_distance));
    //         float new_distance = vox.getDistance() + tanh(ALPHA * (s_voxel - s_point));
 //            if(new_distance == 0){
 
 
 //                    vox.getDistance() * vox.getConfidence() + tanh(ALPHA * (s_voxel - s_point)) * new_confidence;
-//            cout << "DISTANCE " << new_distance << endl;
+           // cout << "DISTANCE " << new_distance << endl;
 
             return new_distance;
         }
     }
 
+    /*!
+     * helper function for creating a text file out of the grid, prepare the data in a vector of vectors
+     * where each vector resembles to a line in the following format
+     * i , j , k , distance, confidence.
+     * @param lines - the output vector.
+     */
     void createLines(vector<vector<float>> &lines) {
         vector<float> line;
         for (auto it = grid.begin(); it != grid.end(); it++) {
@@ -1227,7 +1235,12 @@ public:
             line.clear();
         }
     }
-
+    /*!
+     * function for creating a text file containing information regarding each of the grid's voxels
+     * the format will be: each voxel in each line such that i, j , k , distance, confidence
+     * @param path - path to the file to be created
+     * @param lines - vector of vectors where each vector resembles to a line in the file.
+     */
     void createTextFileFromGrid(string path, vector<vector<float>> &lines) {
         ofstream file(path);
         for (int i = 0; i < lines.size(); i++) {

@@ -32,7 +32,7 @@ Matx31f calc_avg_grid_center(vector<worldPoint> features_point);
 void CreateRaysAndVoxels(vector<Matx31f>& cam_poses, vector<vector<worldPoint>>& frames_featurs, grid3D& grid,
         int number_of_frames_to_present) {
     vector<vector<tuple<int, int, int>>> keys;
-    for (int i = 0; i < number_of_frames_to_present; i++) {
+    for (int i = 0; i < frames_featurs.size(); i++) {
 //        cout << "frame num " << i << endl;
         for (int j = STARTING_FEATURE_TO_PRESENT; j <  frames_featurs[i].size(); ++j) {
 //            cout << "frame num " << i << " " << "feature_num " << j << endl;
@@ -1215,7 +1215,7 @@ int main(int argc, char **argv){
     ParseArKitData(images, jsons, frames_features, frames_vector);
     vector<string> images_paths;
 
-    ParseAllJsons(images_paths, frames_vector, frames_features);
+   // ParseAllJsons(images_paths, frames_vector, frames_features);
     /// create ply from the features
     createPlyFileOfAllFeatures(frames_features, "grid_ply/features.ply");
     /// create grid
