@@ -34,10 +34,11 @@ void CreateRaysAndVoxels(vector<Matx31f>& cam_poses, vector<vector<worldPoint>>&
     vector<vector<tuple<int, int, int>>> keys;
     for (int i = 0; i < frames_featurs.size(); i++) {
 //        cout << "frame num " << i << endl;
-        for (int j = STARTING_FEATURE_TO_PRESENT; j <  frames_featurs[i].size(); ++j) {
+        for (int j = 0; j <  frames_featurs[i].size(); ++j) {
 //            cout << "frame num " << i << " " << "feature_num " << j << endl;
             Matx31f point_in_world = convertWorldPointToMatx(frames_featurs[i][j]);
             Matx31f point_in_grid = grid.mapFromWorldToGrid(point_in_world);
+
             straight_line_equation l(cam_poses[i-1], point_in_grid);
 //            cout << "CAMPOSE: " <<  cam_poses[i-1] << endl;
 //            cout << "FEATURE_IN_GRID: " << point_in_grid << endl;
@@ -47,10 +48,15 @@ void CreateRaysAndVoxels(vector<Matx31f>& cam_poses, vector<vector<worldPoint>>&
             }
             tuple<Matx31f, Matx31f> intersection_points = grid.findIntersectionPoint(l, slope);
             Matx31f entrance_point = get<0>(intersection_points);
+            /// insert feature
+//            vector<tuple<int,int,int>> key = grid.getVoxelFromCoordinatesOrPush(point_in_grid(0,0), point_in_grid(0, 1), point_in_grid(0, 2), l, i);
+//            grid.getGrid().find(key.back())->second.setIsFeature();
             keys.push_back(grid.getVoxelFromCoordinatesOrPush(entrance_point(0, 0), entrance_point(1, 0),entrance_point(2, 0),l,i));
             if (keys.back().empty()) {
                 continue;
             }
+            // push the feature itself.
+
             grid.bresenhamAlgorithim(l, keys.back()[0], i);
 
 //            cout << "iteration " << i << "Range of S: " << "(" << slope.x << " , " << slope.y << ")" << endl;
@@ -1109,11 +1115,12 @@ void exportGridToFile(grid3D& grid){
      */
     void createPlyFileOfAllFeatures(vector<vector<worldPoint>>& frames_features, string path_to_ply){
         int features_num = 0;
-        for(int i = 0; i < frames_features.size(); i++){
+        for(int i = 0; i <  frames_features.size(); i++){
             for(int j = 0; j < frames_features[i].size(); j++){
                 features_num++;
             }
         }
+        cout << "feature number from data is " << features_num << endl;
         std::ofstream outFile(path_to_ply);
         outFile << "ply" << endl;
         outFile << "format ascii 1.0" << endl;
@@ -1219,7 +1226,7 @@ int main(int argc, char **argv){
     /// create ply from the features
     createPlyFileOfAllFeatures(frames_features, "grid_ply/features.ply");
     /// create grid
-    grid3D grid = createGridFromGivenFrame(frames_features[0], frames_vector[0], 0.015);
+    grid3D grid = createGridFromGivenFrame(frames_features[0], frames_vector[0], 0.01);
     vector<Point3d> grid_edges;
     /// create grid edges
     createGridEdges(grid_edges);
@@ -1230,6 +1237,8 @@ int main(int argc, char **argv){
 //    testPresentTwentyFiveRaysWithSameFeature(cam_poses, frames_features, grid);
     int number_of_frames_to_present = 50;
     CreateRaysAndVoxels(cam_poses, frames_features, grid, number_of_frames_to_present);
+    cout << grid.getGrid().size() << endl;
+    //grid.checkHowManyFeaturesInGrid();
     /// convert confidence values to [0,1] scale by normalize them
     grid.normalizeVoxelsConfidence();
     cout << "start update grid by confidence" << endl;

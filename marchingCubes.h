@@ -24,10 +24,10 @@ struct TriMeshFace
 
 
 struct Mesh {
-    vector<Matx31f> v;
+    vector<Matx31d> v;
     vector<TriMeshFace> t;
     Mesh() = default;
-    Mesh(TriMeshFace* triangles, Matx31f* vertices, int new_vertices, int new_triangles){
+    Mesh(TriMeshFace* triangles, Matx31d* vertices, int new_vertices, int new_triangles){
         for(int i = 0; i < new_vertices; i++){
             v.push_back(vertices[i]);
         }
@@ -39,7 +39,7 @@ struct Mesh {
 
 
 
-Matx31f VertexInterp(const Matx31f &p1, const Matx31f &p2, float valp1, float valp2);
+Matx31d VertexInterp(const Matx31d &p1, const Matx31d &p2, double valp1, double valp2);
 
 //marching cubes table data
 int edgeTable[256]={
@@ -333,13 +333,13 @@ char triTable[256][16] =
          {0, 3, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
          {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1}};
 
-int Polygonise(GRIDCELL &Grid, TriMeshFace *Triangles, int &NewVertexCount, Matx31f *Vertices)
+int Polygonise(GRIDCELL &Grid, TriMeshFace *Triangles, int &NewVertexCount, Matx31d *Vertices)
 {
     int TriangleCount;
     int CubeIndex;
 
-    Matx31f VertexList[12];
-    Matx31f NewVertexList[12];
+    Matx31d VertexList[12];
+    Matx31d NewVertexList[12];
     char LocalRemap[12];
 
     //Determine the index into the edge table which
@@ -429,7 +429,7 @@ int Polygonise(GRIDCELL &Grid, TriMeshFace *Triangles, int &NewVertexCount, Matx
    Linearly interpolate the position where an isosurface cuts
    an edge between two vertices, each with their own scalar value
 */
-Matx31f VertexInterp(const Matx31f &p1,const Matx31f &p2,float valp1,float valp2)
+Matx31d VertexInterp(const Matx31d &p1,const Matx31d &p2,double valp1,double valp2)
 {
     return (p1 + (-valp1 / (valp2 - valp1)) * (p2 - p1));
 }
@@ -447,7 +447,7 @@ void CreateMeshFromGrid(vector<Mesh>& grid_mesh, grid3D& grid){
     int new_triangles = 0;
     for(auto it = grid.get_grid_cell_map().begin(); it != grid.get_grid_cell_map().end(); it++){
         TriMeshFace triangles[20];
-        Matx31f vertices[20];
+        Matx31d vertices[20];
         new_vertex_count = 0;
         new_triangles = 0;
         new_triangles = Polygonise(it->second, triangles, new_vertex_count, vertices);
@@ -466,17 +466,17 @@ void CreateMeshFromGrid(vector<Mesh>& grid_mesh, grid3D& grid){
  * @param full_mesh - the union of all the meshes.
  */
 void createFullMesh(vector<Mesh> &gridMeshes, Mesh& fullmesh){
-    float last_perc = 0;
+    double last_perc = 0;
     for (int i = 0; i < gridMeshes.size(); i++) {
         Mesh gm = gridMeshes[i];
         std::vector<int> vers_idx_in_tot(
                 gm.v.size());    //this array will be filled with index of vertices in global mesh
         for (int iv = 0; iv < gm.v.size(); iv++) {
             //search for nearest vertex in mesh
-            float closest_v_dist = std::numeric_limits<float>::max();
+            double closest_v_dist = std::numeric_limits<double>::max();
             int vidx_in_tot = -1;
             for (int k = 0; k < fullmesh.v.size(); k++) {
-                float d = cv::norm(fullmesh.v[k] - gm.v[iv]);
+                double d = cv::norm(fullmesh.v[k] - gm.v[iv]);
                 if (d < closest_v_dist) {
                     closest_v_dist = d;
                     vidx_in_tot = k;
@@ -523,7 +523,7 @@ void exportMeshToFile(Mesh& fullmesh, string path_to_file){
     myfile.close();
 }
 //// given a grid cell, returns the set of triangles that approximates the region where val == 0.
-//int Polygonise(GRIDCELL &Grid, TriMeshFace *Triangles, int &NewVertexCount, Matx31f *Vertices);
+//int Polygonise(GRIDCELL &Grid, TriMeshFace *Triangles, int &NewVertexCount, Matx31d *Vertices);
 //
 //
 //// creates a mesh from a given grid

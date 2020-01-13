@@ -18,8 +18,11 @@
 #define GRID_SIZE 2001
 #define EDGE_COORDINATE ( GRID_SIZE - 1 ) / 2
 #define ALPHA 0.01
-#define SIGMA 1.5
-#define THRESHOLD_CONFIDENCE 0.1
+#define SIGMA 0.1
+#define THRESHOLD_CONFIDENCE 0.13
+#define MAX_CONFIDENCE 8
+#define MAX_DISTANCE 10
+#define MIN_DISTANCE -10
 #define NORMALIZE_DISTANCE_FACTOR 0.000005
 #define FEATURE_CONFIDENCE_BONUS 100
 
@@ -82,9 +85,10 @@ class voxel{
     float distance;
     float confidence;
     int frame_number;
+    bool is_feature;
 
 public:
-    voxel(float val = 9999, float confd = -9999, int frameNumber=-1): distance(val), confidence(confd), frame_number(frameNumber){}
+    voxel(float val = 9999, float confd = -9999, int frameNumber=-1): distance(val), confidence(confd), frame_number(frameNumber), is_feature(false){}
     void setConfidence(float confd){
         confidence = confd;
     }
@@ -92,7 +96,9 @@ public:
     int getFrameNumber(){
         return frame_number;
     }
-
+    bool getIsFeature(){
+        return is_feature;
+    }
     void setFrameNumber(int frameNumber) {
         frame_number = frameNumber;
     }
@@ -105,6 +111,9 @@ public:
     }
     float getDistance(){
         return distance;
+    }
+    void setIsFeature(){
+        is_feature = true;
     }
 };
 
@@ -577,8 +586,7 @@ public:
 
      * @return - the voxels indexes as a vecotr of tuples.
      */
-    vector<tuple<int, int, int>>
-    getVoxelFromCoordinatesOrPush(float i, float j, float k, straight_line_equation line, int frame_number) {
+    vector<tuple<int, int, int>> getVoxelFromCoordinatesOrPush(float i, float j, float k, straight_line_equation line, int frame_number) {
         /// in case the point is out of the grid
         vector<tuple<int, int, int>> keys;
         if (fabs(i) > (EDGE_COORDINATE + 0.5) * step_size || fabs(j) > (EDGE_COORDINATE + 0.5) * step_size ||
@@ -1092,6 +1100,20 @@ public:
             }
         }
     }
+    /*!
+     * function that checks the number of features in the grid (that was inserted as voxels)
+     * this function is for testing purposes
+     */
+    void checkHowManyFeaturesInGrid(){
+        int counter = 0;
+        for(auto it = grid.begin(); it != grid.end(); it++){
+            if(it->second.getIsFeature()){
+                counter++;
+            }
+        }
+        cout << "number of features is: " << counter << endl;
+
+    }
 
 
     /*!
@@ -1166,14 +1188,20 @@ public:
  * @param vox - the voxel we're calculating the distance
  * @return - the confidence of the voxel.
  */
-    float calc_confidence(float s_voxel, float s_point, voxel vox) {
+    float calc_confidence(float s_voxel, float s_point, voxel& vox) {
         float new_confidence = exp(-(pow(s_voxel - s_point, 2) / (SIGMA * SIGMA)));
         // means the voxel hasent been blacked yet
         if (vox.getConfidence() == -9999) {
+            // means its the feature.
+            if(s_voxel == 1){
+                vox.setIsFeature();
+            }
             return new_confidence;
         } else {
 //            cout << " *****************************************************" << 5 + vox.getConfidence() << endl;
-            return new_confidence + vox.getConfidence();
+            if(new_confidence + vox.getConfidence() > MAX_CONFIDENCE){
+                return MAX_CONFIDENCE;
+            };
             //return (new_confidence + vox.getConfidence()) / 2;
         }
 
@@ -1194,7 +1222,6 @@ public:
         // means the voxel hasent been blacked yet
         if (vox.getDistance() == 9999) {
 
-//           cout << "DISTANCE " << tanh(ALPHA * (s_voxel - s_point)) << endl;
             float distance = tanh(ALPHA * (s_voxel - s_point));
             if(distance == 0){
                 distance += 0.0005;
@@ -1202,14 +1229,23 @@ public:
             return distance;
         } else {
             float d_new = tanh(ALPHA * (s_voxel - s_point));
+            if((vox.getConfidence() + new_confidence) == 0){
+                return d_new;
+            }
             float new_distance = (vox.getDistance() * vox.getConfidence() + d_new * new_confidence) / (vox.getConfidence() + new_confidence);
+            if(new_distance > MAX_DISTANCE){
+                new_distance = MAX_DISTANCE;
+            }
+            if(new_distance < MIN_DISTANCE){
+                new_distance = MIN_DISTANCE;
+            }
 //            new_distance = tanh(NORMALIZE_DISTANCE_FACTOR * (new_distance));
    //         float new_distance = vox.getDistance() + tanh(ALPHA * (s_voxel - s_point));
 //            if(new_distance == 0){
 
 
 //                    vox.getDistance() * vox.getConfidence() + tanh(ALPHA * (s_voxel - s_point)) * new_confidence;
-           // cout << "DISTANCE " << new_distance << endl;
+//            cout << "DISTANCE " << new_distance << endl;
 
             return new_distance;
         }
@@ -1422,6 +1458,25 @@ public:
             neighboors.clear();
         }
     }
+
+    bool checkIfAnyNeighboorIsFeature(tuple<int,int,int> indexes_of_voxel){
+        vector<tuple<int, int, int>> neighboors;
+        findVoxelNeighboors(indexes_of_voxel, neighboors);
+        for (int i = 0; i < neighboors.size(); ++i) {
+            auto grid_iterator = grid.find(neighboors[i]);
+            // if the neighboor hasent been inserted yet we put it with the voxel distance and confidence
+            if (grid_iterator == densified_grid.end()) {
+                continue;
+            }
+            else{
+                if(grid_iterator->second.getIsFeature()){
+                    return true;
+                }
+            }
+        }
+        return false;
+
+    }
    /*!
     * function for converting our grid into GRIDCELLS, every 8 adjacent voxels become one gridcell
     * where every voxel will be a vertex of the gridcell (will be inserted into the vertex vector in the gridcell)
@@ -1480,7 +1535,7 @@ public:
     void updateGridByConfidenceThreshold(){
         auto it = grid.begin();
         while(it != grid.end()){
-            if(it->second.getConfidence() < THRESHOLD_CONFIDENCE){
+            if(it->second.getConfidence() < THRESHOLD_CONFIDENCE /*&& !checkIfAnyNeighboorIsFeature(it->first)*/){
                it =  grid.erase(it);
             }
             else {
