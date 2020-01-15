@@ -10,7 +10,7 @@
    // std::ofstream
 
 
-#define GRID_SIZE 201
+#define GRID_SIZE 351
 #define EDGE_COORDINATE ( GRID_SIZE - 1 ) / 2
 #define ALPHA 0.01
 #define SIGMA 0.03

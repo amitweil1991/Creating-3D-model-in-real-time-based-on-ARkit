@@ -99,7 +99,7 @@ int main(int argc, char **argv){
     ParseArKitData(images, jsons, frames_features, frames_vector, "jeep_scan");
     vector<string> images_paths;
     /// create grid
-    grid3D grid = createGridFromGivenFrame(frames_features[0], frames_vector[0], 0.002);
+    grid3D grid = createGridFromGivenFrame(frames_features[0], frames_vector[0], 0.0013);
     vector<Matx<float, 3, 1>> grid_edges;
     /// create ply from the features
     createPlyFileOfAllFeatures(frames_features, "grid_ply/features.ply");
