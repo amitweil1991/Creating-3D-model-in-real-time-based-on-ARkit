@@ -6,8 +6,21 @@
 #define NC_RD_FACEMASK_MARCHINGCUBES_H
 
 #include "grid3D.h"
-//#include <tiff.h>
 #define NORM_EPS 1e-10
+static const int N = 30;
+
+
+struct Matx31fCompare{
+    bool operator() (const Matx31f& lhs, const Matx31f& rhs) const{
+        if(lhs(0, 0) == rhs(0, 0)) {
+            if (lhs(0, 1) == rhs(0, 1)) {
+                return (lhs(0, 2) < rhs(0, 2));
+            }
+            return (lhs(0, 1) < rhs(0, 1));
+        }
+        return (lhs(0, 0) < rhs(0, 0));
+    }
+};
 
 struct TriMeshFace
 {
@@ -24,12 +37,15 @@ struct TriMeshFace
 
 
 struct Mesh {
-    vector<Matx31d> v;
+    map<Matx31f, int, Matx31fCompare> vertices_map;
+    vector<Matx31f> v;
     vector<TriMeshFace> t;
     Mesh() = default;
-    Mesh(TriMeshFace* triangles, Matx31d* vertices, int new_vertices, int new_triangles){
+    Mesh(TriMeshFace* triangles, Matx31f* vertices, int new_vertices, int new_triangles){
         for(int i = 0; i < new_vertices; i++){
             v.push_back(vertices[i]);
+            pair<Matx31f, int> new_node(vertices[i], i);
+            vertices_map.insert(new_node);
         }
         for(int i = 0; i < new_triangles; i++){
             t.push_back(triangles[i]);
@@ -39,7 +55,7 @@ struct Mesh {
 
 
 
-Matx31d VertexInterp(const Matx31d &p1, const Matx31d &p2, double valp1, double valp2);
+Matx31f VertexInterp(const Matx31f &p1, const Matx31f &p2, double valp1, double valp2);
 
 //marching cubes table data
 int edgeTable[256]={
@@ -333,13 +349,13 @@ char triTable[256][16] =
          {0, 3, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
          {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1}};
 
-int Polygonise(GRIDCELL &Grid, TriMeshFace *Triangles, int &NewVertexCount, Matx31d *Vertices)
+int Polygonise(GRIDCELL &Grid, TriMeshFace *Triangles, int &NewVertexCount, Matx31f *Vertices)
 {
     int TriangleCount;
     int CubeIndex;
 
-    Matx31d VertexList[12];
-    Matx31d NewVertexList[12];
+    Matx31f VertexList[12];
+    Matx31f NewVertexList[12];
     char LocalRemap[12];
 
     //Determine the index into the edge table which
@@ -429,7 +445,7 @@ int Polygonise(GRIDCELL &Grid, TriMeshFace *Triangles, int &NewVertexCount, Matx
    Linearly interpolate the position where an isosurface cuts
    an edge between two vertices, each with their own scalar value
 */
-Matx31d VertexInterp(const Matx31d &p1,const Matx31d &p2,double valp1,double valp2)
+Matx31f VertexInterp(const Matx31f &p1,const Matx31f &p2,double valp1,double valp2)
 {
     return (p1 + (-valp1 / (valp2 - valp1)) * (p2 - p1));
 }
@@ -447,7 +463,7 @@ void CreateMeshFromGrid(vector<Mesh>& grid_mesh, grid3D& grid){
     int new_triangles = 0;
     for(auto it = grid.get_grid_cell_map().begin(); it != grid.get_grid_cell_map().end(); it++){
         TriMeshFace triangles[20];
-        Matx31d vertices[20];
+        Matx31f vertices[20];
         new_vertex_count = 0;
         new_triangles = 0;
         new_triangles = Polygonise(it->second, triangles, new_vertex_count, vertices);
@@ -467,29 +483,46 @@ void CreateMeshFromGrid(vector<Mesh>& grid_mesh, grid3D& grid){
  */
 void createFullMesh(vector<Mesh> &gridMeshes, Mesh& fullmesh){
     double last_perc = 0;
-    for (int i = 0; i < gridMeshes.size(); i++) {
+    int j = gridMeshes.size();
+    for (int i = 0; i < gridMeshes.size(); i++,j--) {    /// N
+//        if(i % 100000 == 0) {
+//            cout << "iteration number to go: " << j << endl;
+//        }
         Mesh gm = gridMeshes[i];
-        std::vector<int> vers_idx_in_tot(
-                gm.v.size());    //this array will be filled with index of vertices in global mesh
-        for (int iv = 0; iv < gm.v.size(); iv++) {
+        map<Matx31f, Matx31f> vertices_index_in_tot;
+        std::vector<int> vers_idx_in_tot(gm.v.size());    //this array will be filled with index of vertices in global mesh
+        for (int iv = 0; iv < gm.v.size(); iv++) { /// 20 max
             //search for nearest vertex in mesh
-            double closest_v_dist = std::numeric_limits<double>::max();
+            double closest_v_dist = std::numeric_limits<double>::max(); /// the biggesnt distance possible to represent with double
             int vidx_in_tot = -1;
-            for (int k = 0; k < fullmesh.v.size(); k++) {
-                double d = cv::norm(fullmesh.v[k] - gm.v[iv]);
-                if (d < closest_v_dist) {
-                    closest_v_dist = d;
-                    vidx_in_tot = k;
-                }
+            auto node = fullmesh.vertices_map.find(gm.v[iv]);
+            if(node != fullmesh.vertices_map.end()){
+                // vertex was found
+                vers_idx_in_tot[iv] = node->second;
             }
-            if (closest_v_dist < NORM_EPS) {
-                //vertex was found, set intex to it
-                vers_idx_in_tot[iv] = vidx_in_tot;
-            } else {
-                //no vertex found, add and set index
+            else{
+                // not found, we add it to the full mesh and into the histogram
                 vers_idx_in_tot[iv] = fullmesh.v.size();
+                pair<Matx31f, int> new_map_node(gm.v[iv], fullmesh.v.size());
+                fullmesh.vertices_map.insert(new_map_node);
                 fullmesh.v.push_back(gm.v[iv]);
             }
+
+//            for (int k = 0; k < fullmesh.v.size(); k++) {
+//                double d = cv::norm(fullmesh.v[k] - gm.v[iv]); /// calculating distance between the to points
+//                if (d < closest_v_dist) {
+//                    closest_v_dist = d;
+//                    vidx_in_tot = k;
+//                }
+//            }
+//            if (closest_v_dist < NORM_EPS) {
+//                //vertex was found, set intex to it
+//                vers_idx_in_tot[iv] = vidx_in_tot;
+//            } else {
+//                //no vertex found, add and set index
+//                vers_idx_in_tot[iv] = fullmesh.v.size();
+//                fullmesh.v.push_back(gm.v[iv]);
+//            }
         }
         //add triangels
         for (int it = 0; it < gm.t.size(); it++) {
@@ -522,18 +555,49 @@ void exportMeshToFile(Mesh& fullmesh, string path_to_file){
 
     myfile.close();
 }
-//// given a grid cell, returns the set of triangles that approximates the region where val == 0.
-//int Polygonise(GRIDCELL &Grid, TriMeshFace *Triangles, int &NewVertexCount, Matx31d *Vertices);
-//
-//
-//// creates a mesh from a given grid
-//void CreateMeshFromGrid(vector<Mesh>& grid_mesh, grid3D& grid);
-//
-//// create one mesh from a vector of meshes
-//void createFullMesh(vector<Mesh> &grid_mesh, Mesh& full_mesh);
-//
-//// exports a mesh to a file
-//void exportMeshToFile(Mesh& fullmesh);
+
+
+/*!
+ * function for creating a mesh in a shape of a ball, for testing purposes
+ * @param grid - the grid that will hold the values of the ball, we will then create a mesh from it.
+ */
+void createBall(grid3D& grid){
+    // fill the grid with distances matching a ball
+    int nn = 0;
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < N; j++) {
+            for (int k = 0; k < N; k++) {
+                float r2 = sqrtf((i - N / 2)*(i - N / 2) + (j - N / 2)*(j - N / 2) + (k - N / 2)*(k - N / 2));
+                tuple<int,int,int> tup_i_j_k(i, j , k);
+                voxel new_voxel(r2 - N / 4, 100);
+                pair<tuple<int,int,int>, voxel> new_cell(tup_i_j_k, new_voxel);
+                grid.getDensifiedGrid().insert(new_cell);
+            }
+        }
+    }
+    grid.createGridCellMap();
+    //polygonize each cell
+    std::vector<Mesh> gridMeshes;
+    CreateMeshFromGrid(gridMeshes, grid);
+    //collect all to single mesh
+    Mesh fullmesh;
+    createFullMesh(gridMeshes, fullmesh);
+    //export to file
+    std::ofstream myfile;
+    myfile.open("example.off");
+    myfile << "OFF\n";
+    myfile << fullmesh.v.size() <<" "<<fullmesh.t.size()<<" 0\n";
+    for (int i = 0; i < fullmesh.v.size(); i++) {
+        myfile << fullmesh.v[i](0) << " " << fullmesh.v[i](1) << " " << fullmesh.v[i](2) << "\n";
+    }
+    for (int i = 0; i < fullmesh.t.size(); i++) {
+        myfile << "3 "<< fullmesh.t[i].I[0] << " " << fullmesh.t[i].I[1] << " " << fullmesh.t[i].I[2] << "\n";
+    }
+
+    myfile.close();
+
+}
+
 
 
 

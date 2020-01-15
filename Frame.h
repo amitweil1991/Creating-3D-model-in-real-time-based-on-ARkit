@@ -5,12 +5,7 @@
 #ifndef NC_RD_FACEMASK_FRAME_H
 #define NC_RD_FACEMASK_FRAME_H
 
-#include "nlohmann/json.hpp"
-#include <iostream>
-#include <opencv2/opencv.hpp>
-#include <fstream>
-#include <iomanip>
-#include <sstream>
+#include "includes.h"
 
 
 using namespace std;

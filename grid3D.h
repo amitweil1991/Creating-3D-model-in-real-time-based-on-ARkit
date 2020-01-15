@@ -5,21 +5,16 @@
 #ifndef NC_RD_FACEMASK_GRID3D_H
 #define NC_RD_FACEMASK_GRID3D_H
 
-#include <iostream>
-#include <opencv2/opencv.hpp>
-#include <tuple>
-#include <map>
-#include <math.h>
-#include <cstdlib>
-#include <tgmath.h>
-#include <fstream>      // std::ofstream
+#include "utilities.h"
+
+   // std::ofstream
 
 
-#define GRID_SIZE 2001
+#define GRID_SIZE 201
 #define EDGE_COORDINATE ( GRID_SIZE - 1 ) / 2
 #define ALPHA 0.01
-#define SIGMA 0.1
-#define THRESHOLD_CONFIDENCE 0.13
+#define SIGMA 0.03
+#define THRESHOLD_CONFIDENCE 0.125
 #define MAX_CONFIDENCE 8
 #define MAX_DISTANCE 10
 #define MIN_DISTANCE -10
@@ -573,20 +568,16 @@ public:
     }
 
     /*!
-     * this function gets coordinates in the grid axis system, and returns the indexes of the voxel from the memory(the key of the map),
-     * that satisfies that the coordinates fall on its area, if no voxel is found we will push one to the grid, with
-     * suitable confidence and distance (the grid contains only voxels that are colored by a ray, and the point is certainly in at leat one voxel area).
-       if the coordinates fall in the area of two voxel (if one of the coordinates
-     * is exactly step / 2 , we will return both of them), thats why we return a vector.
-     * @param i - the x coordinates
-     * @param j - the y coordinates
-     * @param k - the z coordinates
-     * @param line - the line that are now coloring the grid
-
-
-     * @return - the voxels indexes as a vecotr of tuples.
-     */
-    vector<tuple<int, int, int>> getVoxelFromCoordinatesOrPush(float i, float j, float k, straight_line_equation line, int frame_number) {
+    * this function gets coordinates in the grid axis system, and returns the indexes of the voxel from the memory(the key of the map),
+    * that satisfies that the coordinates fall on its area,
+      if the coordinates fall in the area of two voxel (if one of the coordinates
+    * is exactly step / 2 , we will return both of them), thats why we return a vector.
+    * @param i - the x coordinates
+    * @param j - the y coordinates
+    * @param k - the z coordinates
+    * @return - the voxels indexes as a vecotr of tuples.
+    */
+    vector<tuple<int,int,int>> getVoxelIndexesFromCoordinates(float i, float j, float k){
         /// in case the point is out of the grid
         vector<tuple<int, int, int>> keys;
         if (fabs(i) > (EDGE_COORDINATE + 0.5) * step_size || fabs(j) > (EDGE_COORDINATE + 0.5) * step_size ||
@@ -1026,6 +1017,29 @@ public:
             tuple<int, int, int> key(x, y, z);
             keys.push_back(key);
         }
+    }
+
+    /*!
+     * this function gets coordinates in the grid axis system, and returns the indexes of the voxel from the memory(the key of the map),
+     * that satisfies that the coordinates fall on its area, if no voxel is found we will push one to the grid, with
+     * suitable confidence and distance (the grid contains only voxels that are colored by a ray, and the point is certainly in at leat one voxel area).
+       if the coordinates fall in the area of two voxel (if one of the coordinates
+     * is exactly step / 2 , we will return both of them), thats why we return a vector.
+     * @param i - the x coordinates
+     * @param j - the y coordinates
+     * @param k - the z coordinates
+     * @param line - the line that are now coloring the grid
+     * @return - the voxels indexes as a vecotr of tuples.
+     */
+    vector<tuple<int, int, int>> getVoxelFromCoordinatesOrPush(float i, float j, float k, straight_line_equation line, int frame_number) {
+        vector<tuple<int, int, int>> keys;
+        keys = getVoxelIndexesFromCoordinates(i, j, k);
+        tuple<int,int,int> t(15,-6,-32);
+        if(!keys.empty()) {
+            if (keys.back() == t) {
+                int stop = 1;
+            }
+        }
         UpdateVoxelsFromIndexes(keys, line, frame_number);
         return keys;
 
@@ -1136,7 +1150,11 @@ public:
      */
     void UpdateVoxelsFromIndexes(vector<tuple<int, int, int>> &keys, straight_line_equation line, int frame_number) {
         for (int i = 0; i < keys.size(); ++i) {
+            tuple<int,int,int> tup(15, -6, -32);
             auto it = this->grid.find(keys[i]);
+            if(tup == it->first){
+                int stop = 1;
+            }
             Matx31f point = getCoordinatesFromVoxelIndex(get<0>(keys[i]), get<1>(keys[i]), get<2>(keys[i]));
             Matx31f direction_vector = line.getDirectionVector();
             float v_x = direction_vector(0, 0);
@@ -1166,9 +1184,6 @@ public:
             }
                 // in case the voxel have already been colored once, we just update the confidence and the distance
             else {
-                if(get<0>(it->first) == 0 && get<1>(it->first) == 0 && get<2>(it->first) == 2){
-                    int stop_ya_melech = 1;
-                }
                 float confidence = calc_confidence(s_voxel, 1, get<1>(*it));
                 float distance = calc_distance(s_voxel, 1, get<1>(*it));
                 get<1>(*it).setConfidence(confidence);
@@ -1202,6 +1217,7 @@ public:
             if(new_confidence + vox.getConfidence() > MAX_CONFIDENCE){
                 return MAX_CONFIDENCE;
             };
+            return new_confidence + vox.getConfidence();
             //return (new_confidence + vox.getConfidence()) / 2;
         }
 
@@ -1483,15 +1499,14 @@ public:
     * , and each voxel's distance will be inserted into the val vector inside the created gridcell
     */
     void createGridCellMap() {
-        cout << "grid_size" << grid.size() << endl;
-        int counter = densified_grid.size();
+        //int counter = densified_grid.size();
         for (auto it = densified_grid.begin(); it != densified_grid.end(); it++) {
             vector<tuple<int, int, int>> possible_grid_cells;
             findAllVertexes(it->first, possible_grid_cells);
             /// means at least one of the vertices is out of the grid, so we continue to the next one.
             if(possible_grid_cells.empty()){
-                counter--;
-                cout << counter << endl;
+//                counter--;
+//                cout << counter << endl;
                 continue;
             }
             /// the grid cell hasent been inserted yet
@@ -1515,8 +1530,8 @@ public:
                 grid_cell_map.insert(new_grid_cell);
 
             }
-            counter--;
-            cout << counter << endl;
+//            counter--;
+//            cout << counter << endl;
         }
         cout <<" number of grid cells " <<  grid_cell_map.size() << endl;
 
@@ -1542,7 +1557,6 @@ public:
                 it++;
             }
         }
-//        cout << "updated grid size is " << grid.size() << endl;
     }
 
     /*!
@@ -1572,7 +1586,94 @@ public:
             float normalize_confidence = it->second.getConfidence() / max_confidence;
             it->second.setConfidence(normalize_confidence);
         }
+    }
+    void addFeaturesToGrid(vector<vector<worldPoint>>& frames_features) {
+        for (int i = 0; i < frames_features.size(); i++) {
+            for (int j = 0; j < frames_features[i].size(); j++) {
+                Matx31f point_in_world(frames_features[i][j].x, frames_features[i][j].y, frames_features[i][j].z);
+                Matx31f point_in_grid = mapFromWorldToGrid(point_in_world);
+                if (fabs(point_in_grid(0, 0)) > (EDGE_COORDINATE + 0.5) * step_size ||
+                    fabs(point_in_grid(0, 1)) > (EDGE_COORDINATE + 0.5) * step_size ||
+                    fabs(point_in_grid(0, 2)) > (EDGE_COORDINATE + 0.5) * step_size) {
+//            cout << "coordinates is out of the grid's bound" << endl;
+                    continue;
+                }
+                vector<tuple<int, int, int>> features;
+                if(i == 0 && j ==5){
+                    int stop = 1;
+                }
+                features = getVoxelIndexesFromCoordinates(point_in_grid(0, 0), point_in_grid(0, 1),
+                                                          point_in_grid(0, 2));
 
+                for (int t = 0; t < features.size(); t++) {
+                    auto it = grid.find(features[t]);
+                    if (it == grid.end()) {
+                        voxel inserted_voxel;
+                        float confidence = calc_confidence(1, 1, inserted_voxel);
+                        float distance = calc_distance(1, 1, inserted_voxel);
+                        inserted_voxel.setConfidence(confidence);
+                        inserted_voxel.setDistance(distance);
+                        this->grid.insert(pair<tuple<int, int, int>, voxel>(features[t], inserted_voxel));
+                    }
+                        // in case the voxel have already been colored once, we just update the confidence and the distance
+                    else {
+                        float confidence = calc_confidence(1, 1, get<1>(*it));
+                        float distance = calc_distance(1, 1, get<1>(*it));
+                        it->second.setConfidence(confidence);
+                        it->second.setDistance(distance);
+//                cout << get<0>(it->first) << ", " << get<1>(it->first) << ", " << get<2>(it->first) << endl;
+//                cout << " UPDATED DISTANCE: " <<  it->second.getDistance() << endl << endl;
+                    }
+                }
+            }
+        }
+    }
+
+    /*!
+ * function that get voxels indexs, convert them to coordinates in the word and put them in vector who represent voxel details
+ * in grid.txt file
+ * @param indexs - voxel indexs in gris axis
+ * @param line - vector who represent detaile on some voxel
+ * @param grid - the data structure when the black voxels exist
+ */
+    vector<float> convertVoxelIndexToCoordinateInTheWorld(tuple<int,int,int> indexs){
+        vector<float> XYZpoints;
+        Matx31f grid_coordinates_in_world = mapFromGridToWorld(get<0>(indexs), get<1>(indexs), get<2>(indexs));
+        XYZpoints.push_back(grid_coordinates_in_world(0,0));
+        XYZpoints.push_back(grid_coordinates_in_world(1,0));
+        XYZpoints.push_back(grid_coordinates_in_world(2,0));
+        return XYZpoints;
+    }
+
+
+
+    /*!
+ * function for projecting the grid voxels into all the frames (the voxels of the grid are only the one that have been blacked by a ray)
+ * @param grid - the grid we project
+ * @param grid_edges - a vector contating all the coordinates of the grid's edges
+ * @param frames - the frames we projct the grid to.
+ * @param images_path - paths to all the images in the local machine.
+ */
+    void projectGridToFrames(vector<Point3d>& grid_edges, vector<Frame>& frames, vector<string>& images_path){
+        int cntr=0;
+        for(int i = 0; i < frames.size(); i++){
+            projectpointsFromGridToImage(images_path[i], grid_edges, grid, &frames[i], "Frame" + to_string(i), &cntr);
+        }
+    }
+
+/*!
+ * function for creating a visualiztion of the confidence of all the voxels, the bigger the confidence of the voxel,
+ * it will be presented by a bigger circle in the image, we do it for 50 diffrent frames.
+ * @param grid - the grid we project
+ * @param grid_edges - a vector contating all the coordinates of the grid's edges
+ * @param frames - the frames we projct the grid to.
+ * @param images_path - paths to all the images in the local machine.
+ */
+    void createConfidenceHeatMap( vector<Point3d>& grid_edges, vector<Frame>& frames, vector<string>& images_path){
+        int cntr=0;
+        for(int i = 0; i < frames.size(); i++){
+            createConfidenceHeatMap(images_path[i], grid_edges, grid, &frames[i], "Frame " + to_string(i), &cntr);
+        }
 
     }
 
@@ -1611,11 +1712,23 @@ Matx31f calc_avg_grid_center(vector<worldPoint> features_point){
 GRIDCELL::GRIDCELL(vector<tuple<int,int,int>>& indexes_of_vertexes, map<tuple<int,int,int>, voxel>& map, grid3D* grid){
     for(int i = 0; i < indexes_of_vertexes.size(); i++){
         p[i] = grid->mapFromGridToWorld(get<0>(indexes_of_vertexes[i]), get<1>(indexes_of_vertexes[i]), get<2>(indexes_of_vertexes[i]));
-//        Matx31f coordinates(get<0>(indexes_of_vertexes[i]), get<1>(indexes_of_vertexes[i]), get<2>(indexes_of_vertexes[i]));
-//        p[i] = coordinates;
         val[i] = map.find(indexes_of_vertexes[i])->second.getDistance();
     }
-}//value of the function at this grid corner
+}
 
+
+/*!
+ * function for creating a grid from a given frame, calculating its center from the average of all the features of the
+ * frame, and get his cam_ori, R & T.
+ * @param frame_features - the features of the given frame (we calculate the grid center with it)
+ * @param given_frame - the given frame we're using to create the grid
+ * @param step_size - the step size of the grid.
+ * @return - the created grid.
+ */
+grid3D createGridFromGivenFrame(vector<worldPoint>& frame_features, Frame& given_frame, float step_size){
+    Matx31f point_grid_center = calc_avg_grid_center(frame_features);
+    grid3D grid(step_size, given_frame.getCamori(), point_grid_center, given_frame.getR(), given_frame.getT());
+    return grid;
+}
 
 #endif //NC_RD_FACEMASK_GRID3D_H
