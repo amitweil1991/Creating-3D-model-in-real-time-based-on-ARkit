@@ -96,6 +96,20 @@ vector<int> getRGBbyConfidance(float confidence){
 
 
 /*!
+ * function that get voxel's distance and return his RGB value. the RGB value is more red if the confidence bigger
+ * @param confidence
+ * @param RGBvalues
+ */
+vector<int> getRGBbyDistance(float distance){
+    vector<int> RGBvalues;
+    RGBvalues.push_back(255 - (distance));
+    RGBvalues.push_back(255 - (2 * 1000 * abs(distance - 0.5)));
+    RGBvalues.push_back(255 * distance * 1000);
+    return RGBvalues;
+}
+
+
+/*!
  * function to create the video from all the images
  */
 void video (string path_to_video, string path_to_dir, int frame_num)

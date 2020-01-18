@@ -12,15 +12,60 @@
  * this header contains all the function that export information out to files *
 *******************************************************************************/
 
+/*!
+* function that generate grid.ply with all the details of black voxels with RGB w.r.t voxel's distance
+* @param grid - the data structure when the black voxels exist
+*/
+void exportGridDistancesToFile(
+        grid3D& grid,
+        string path)
+{
 
+//        cout << grid.size() << endl;
+    std::ofstream outFile(path);
+    outFile << "ply" << endl;
+    outFile << "format ascii 1.0" << endl;
+    outFile << "element vertex " + to_string(grid.getGrid().size()) << endl;
+    outFile << "property float x" << endl;
+    outFile << "property float y" << endl;
+    outFile << "property float z" << endl;
+    outFile << "property float nx" << endl;
+    outFile << "property float ny" << endl;
+    outFile << "property float nz" << endl;
+    outFile << "property uchar red" << endl;
+    outFile << "property uchar green" << endl;
+    outFile << "property uchar blue" << endl;
+    outFile << "end_header" << endl;
+    vector<float > XYZpoints;
+    vector<int> RGBvalues;
+    for (auto it = grid.getGrid().begin(); it != grid.getGrid().end() ; it++) {
+        if(it->second.getConfidence() >= THRESHOLD_CONFIDENCE) {
+            XYZpoints = grid.convertVoxelIndexToCoordinateInTheWorld(it->first);
+            RGBvalues = getRGBbyDistance(it->second.getDistance());
+            outFile << to_string(XYZpoints[0]) << " " << to_string(XYZpoints[1]) << " " << to_string(XYZpoints[2])
+                    << " 0 0 0 "
+                    << to_string(RGBvalues[0]) << " " << to_string(RGBvalues[1]) << " " << to_string(RGBvalues[2])
+                    << endl;
+            XYZpoints.clear();
+            RGBvalues.clear();
+        }
+        else {
+            int check = 1;
+        }
+    }
+    outFile.close();
+}
 
 
 /*!
 * function that generate grid.ply with all the details of black voxels
 * @param grid - the data structure when the black voxels exist
 */
-void exportGridToFile(grid3D& grid, string path){
-//        cout << grid.size() << endl;
+void exportGridToFile(
+        grid3D& grid,
+        string path)
+{
+
     std::ofstream outFile(path);
     outFile << "ply" << endl;
     outFile << "format ascii 1.0" << endl;
@@ -58,7 +103,13 @@ void exportGridToFile(grid3D& grid, string path){
 
 
 /** function for creating a vector with all the camera positions in a given grid axis, from the given frames **/
-void createCamPoseVectorAndPlyForFrames(vector<Matx31f>& cam_pose_vector, vector<Frame>& frames, grid3D& grid, string path ) {
+void createCamPoseVectorAndPlyForFrames(
+        vector<Matx31f>& cam_pose_vector,
+        vector<Frame>& frames,
+        grid3D& grid,
+        string path)
+{
+
     vector<Matx31f> campose_world;
     for (int i = 0; i < frames.size(); i++) {
         cam_pose_vector.push_back(grid.mapFromWorldToGrid(frames[i].getCampos()));
@@ -98,7 +149,11 @@ void createCamPoseVectorAndPlyForFrames(vector<Matx31f>& cam_pose_vector, vector
  * @param grid
  * @param path_to_ply
  */
-void createPlyFromGridCenter(grid3D &grid, string path_to_ply){
+void createPlyFromGridCenter(
+        grid3D &grid,
+        string path_to_ply)
+{
+
     std::ofstream outFile(path_to_ply);
     outFile << "ply" << endl;
     outFile << "format ascii 1.0" << endl;
@@ -127,7 +182,11 @@ void createPlyFromGridCenter(grid3D &grid, string path_to_ply){
     * @param frames_features - the features
     * @param path_to_ply - path to the generated ply file.
     */
-void createPlyFileOfAllFeatures(vector<vector<worldPoint>>& frames_features, string path_to_ply){
+void createPlyFileOfAllFeatures(
+        vector<vector<worldPoint>>& frames_features,
+        string path_to_ply)
+{
+
     int features_num = 0;
     for(int i = 0; i <  frames_features.size(); i++){
         for(int j = 0; j < frames_features[i].size(); j++){
@@ -183,8 +242,15 @@ void createPlyFileOfAllFeatures(vector<vector<worldPoint>>& frames_features, str
  * @param all - boolean that denoting if we presented all of the features from each frame (true or false accordingly)
  * @param number_of_meshes_created - the number of meshes that was created eventualy.
  */
-void createConfigurationFile(string path, grid3D& grid, int frames_num, int number_of_features_from_frame, bool all,
-                             int number_of_meshes_created){
+void createConfigurationFile(
+        string path,
+        grid3D& grid,
+        int frames_num,
+        int number_of_features_from_frame,
+        bool all,
+        int number_of_meshes_created)
+{
+
     std::ofstream myfile;
     myfile.open(path);
     myfile << "****** Configuration File ******" << '\n';
@@ -211,10 +277,17 @@ void createConfigurationFile(string path, grid3D& grid, int frames_num, int numb
 
 
 /*!
- * function for creating a vector that contains all the grid's edges
+ * function for creating a ply that contains all the grid's edges
+ * @param grid - the grid
  * @param vec - the vector contatining all the grid edges
+ * @param path - path to the ply file
+
  */
-void createPlyFromGridEdges(grid3D& grid, vector<Matx<float, 3, 1>>& vec, string path ){
+void createPlyFromGridEdges(
+        grid3D& grid,
+        vector<Matx<float, 3, 1>>& vec,
+        string path )
+{
     Point3d p1(-EDGE_COORDINATE,-EDGE_COORDINATE,-EDGE_COORDINATE);
     Point3d p3(-EDGE_COORDINATE,EDGE_COORDINATE,-EDGE_COORDINATE);
     Point3d p2(EDGE_COORDINATE,-EDGE_COORDINATE,-EDGE_COORDINATE);

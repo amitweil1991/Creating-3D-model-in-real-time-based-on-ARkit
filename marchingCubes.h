@@ -41,7 +41,11 @@ struct Mesh {
     vector<Matx31f> v;
     vector<TriMeshFace> t;
     Mesh() = default;
-    Mesh(TriMeshFace* triangles, Matx31f* vertices, int new_vertices, int new_triangles){
+    Mesh(TriMeshFace* triangles
+            , Matx31f* vertices,
+            int new_vertices,
+            int new_triangles)
+    {
         for(int i = 0; i < new_vertices; i++){
             v.push_back(vertices[i]);
             pair<Matx31f, int> new_node(vertices[i], i);

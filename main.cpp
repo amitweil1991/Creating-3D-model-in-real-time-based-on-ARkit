@@ -18,75 +18,37 @@ Matx31f calc_avg_grid_center(vector<worldPoint> features_point);
  * @param frames_featurs - the features that creates the rays
  * @param grid - the given grid we're presenting the rays on
  */
-void CreateRaysAndVoxels(vector<Matx31f>& cam_poses, vector<vector<worldPoint>>& frames_featurs, grid3D& grid,
-        int number_of_frames_to_present) {
-    vector<vector<tuple<int, int, int>>> keys;
-    for (int i = 0; i < frames_featurs.size(); i++) {
-        for (int j = 0; j <  frames_featurs[i].size(); ++j) {
-            Matx31f point_in_world = convertWorldPointToMatx(frames_featurs[i][j]);
-            Matx31f point_in_grid = grid.mapFromWorldToGrid(point_in_world);
-            straight_line_equation line(cam_poses[i-1], point_in_grid);
-            Point2d slope = grid.getSlopeRange(line);
-            if (slope.x == -9999 && slope.y == -9999) {
-                continue;
-            }
-            tuple<Matx31f, Matx31f> intersection_points = grid.findIntersectionPoint(line, slope);
-            Matx31f entrance_point = get<0>(intersection_points);
+void CreateRaysAndVoxels(
+        vector<Matx31f>& cam_poses,
+        vector<vector<worldPoint>>& frames_featurs,
+        grid3D& grid,
+        int number_of_frames_to_present)
+{
+
+        vector<vector<tuple<int, int, int>>> keys;
+        for (int i = 0; i < frames_featurs.size(); i++) {
+            for (int j = 0; j <  frames_featurs[i].size(); ++j) {
+                Matx31f point_in_world = convertWorldPointToMatx(frames_featurs[i][j]);
+                Matx31f point_in_grid = grid.mapFromWorldToGrid(point_in_world);
+                straight_line_equation line(cam_poses[i-1], point_in_grid);
+                Point2d slope = grid.getSlopeRange(line);
+                if (slope.x == -9999 && slope.y == -9999) {
+                    continue;
+                }
+                tuple<Matx31f, Matx31f> intersection_points = grid.findIntersectionPoint(line, slope);
+                Matx31f entrance_point = get<0>(intersection_points);
             /// insert feature
-            keys.push_back(grid.getVoxelFromCoordinatesOrPush(entrance_point(0, 0), entrance_point(1, 0),entrance_point(2, 0),line ,i));
+                keys.push_back(grid.getVoxelFromCoordinatesOrPush(entrance_point(0, 0), entrance_point(1, 0),entrance_point(2, 0),line ,i));
             // if no entrance point
-            if (keys.back().empty()) {
-                continue;
-            }
-            grid.UpdateVoxelsFromIndexes(keys.back(), line, i);
+                if (keys.back().empty()) {
+                    continue;
+                }
+                grid.UpdateVoxelsFromIndexes(keys.back(), line, i);
             // push the feature itself.
-            grid.bresenhamAlgorithim(line, keys.back()[0], i);
+                grid.bresenhamAlgorithim(line, keys.back()[0], i);
+            }
         }
-    }
 }
-
-
-
-
-
-
-/** function for presenting 25 rays from different frames with the same feature, just in order to check that the intersection point
- * between all the rays, which is the feature itslef will have greater confidence
- *
- * @param cam_poses - the cam poses in the GRID axis, together with the features it creates the rays
- * @param frames_featurs - the features that creates the rays
- * @param grid - the given grid we're presenting the rays on
- */
-
-//void testPresentTwentyFiveRaysWithSameFeature(vector<Matx31f>& cam_poses, vector<vector<worldPoint>>& frames_featurs, grid3D& grid) {
-//    vector<vector<tuple<int, int, int>>> keys;
-//    Matx31f point_in_world = convertWorldPointToMatx(frames_featurs[0][102]);
-//    Matx31f point_in_grid = grid.mapFromWorldToGrid(point_in_world);
-//    for(int i = 0; i < cam_poses.size(); i++ ) {
-//        straight_line_equation l(cam_poses[i], point_in_grid);
-//        Point2d slope = grid.getSlopeRange(l);
-//        if (slope.x == -9999 && slope.y == -9999) {
-//            continue;
-//        }
-//        tuple<Matx31f, Matx31f> intersection_points = grid.findIntersectionPoint(l, slope);
-//        Matx31f entrance_point = get<0>(intersection_points);
-//        keys.push_back(grid.getVoxelFromCoordinatesOrPush(entrance_point(0, 0), entrance_point(1, 0),
-//                                                          entrance_point(2, 0), l, i));
-//        if (keys.back().empty()) {
-//            continue;
-//        }
-//        grid.bresenhamAlgorithim(l, keys.back()[0], i);
-//
-////            cout << "iteration " << i << "Range of S: " << "(" << slope.x << " , " << slope.y << ")" << endl;
-//
-////        for (auto it = grid.getGrid().begin(); it != grid.getGrid().end(); it++) {
-////            tuple<int, int, int> key = it->first;
-////            cout << get<0>(key) << ", " << get<1>(key) << ", " << get<2>(key) << endl;
-////
-////        }
-//    }
-//
-//}
 
 
 
@@ -99,7 +61,7 @@ int main(int argc, char **argv){
     ParseArKitData(images, jsons, frames_features, frames_vector, "jeep_scan");
     vector<string> images_paths;
     /// create grid
-    grid3D grid = createGridFromGivenFrame(frames_features[0], frames_vector[0], 0.0013);
+    grid3D grid = createGridFromGivenFrame(frames_features[0], frames_vector[0], 0.002);
     vector<Matx<float, 3, 1>> grid_edges;
     /// create ply from the features
     createPlyFileOfAllFeatures(frames_features, "grid_ply/features.ply");
@@ -122,14 +84,15 @@ int main(int argc, char **argv){
     cout << "the number of voxels in the updated is " << grid.getGrid().size() << endl;
     /// create grid.ply file for Mesh Lab
     exportGridToFile(grid, "grid_ply/grid.ply");
-    /// export grid to a text file
+    exportGridDistancesToFile(grid, "grid_ply/grid_distances.ply");
+        /// export grid to a text file
     vector<vector<float>> lines;
     grid.createLines(lines);
     grid.createTextFileFromGrid("grid_text/grid_as_text.txt", lines);
-    cout << " start densify" << endl;
+    cout << "start densify" << endl;
     /// densify the grid's data
     grid.addVoxelsToDensifiedGrid();
-    cout << " finished densify" << endl;
+    cout << "finished densify" << endl;
     /// create grid cell map
     cout << " start create grid cell map" << endl;
     grid.createGridCellMap();
@@ -145,7 +108,7 @@ int main(int argc, char **argv){
     createFullMesh(grid_mesh, full_mesh);
     cout << " finished create full mesh" << endl;
     /// export mesh to file
-    string path_to_file("grid_as_mesh/grid_as_mesh.off");
+    string path_to_file("grid_ply/grid_as_mesh.off");
     cout << " start exporting mesh to file " << endl;
     exportMeshToFile(full_mesh, path_to_file);
     cout << " finished exporting mesh to file " << endl;

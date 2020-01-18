@@ -84,4 +84,11 @@ void createGridEdges(grid3D& grid, vector<Matx<float, 3, 1>>& vec){
     outFile.close();
 }
 
-
+#define GRID_SIZE 201
+#define EDGE_COORDINATE ( GRID_SIZE - 1 ) / 2
+#define ALPHA 0.01
+#define SIGMA 0.004
+#define THRESHOLD_CONFIDENCE 0.2
+#define MAX_CONFIDENCE 8
+#define MAX_DISTANCE 10
+#define MIN_DISTANCE -10
